@@ -203,6 +203,14 @@ export default function InventarioScreen({ go }) {
           onSave={(cambios) => handleEdit(editSheet.id, cambios)}
         />
       )}
+      {stockSheet && (
+        <StockMoveSheet
+          producto={stockSheet}
+          onClose={() => setStockSheet(null)}
+          caja={caja}
+          onMove={(delta, tipo, montoCaja) => handleMoverStock(stockSheet.id, delta, tipo, montoCaja)}
+        />
+      )}
       </>
       )}
     </Screen>
