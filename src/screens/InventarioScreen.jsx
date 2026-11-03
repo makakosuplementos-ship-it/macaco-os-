@@ -203,6 +203,9 @@ export default function InventarioScreen({ go }) {
           onSave={(cambios) => handleEdit(editSheet.id, cambios)}
         />
       )}
+      {showAdd && (
+        <AddProductSheet onClose={() => setShowAdd(false)} onSave={handleAdd} />
+      )}
       {stockSheet && (
         <StockMoveSheet
           producto={stockSheet}
