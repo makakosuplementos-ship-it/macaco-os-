@@ -9,6 +9,7 @@ import {
   sumarTotal, sumarMargen, getDiasGraficoSemanal, getTopProductos,
   calcMetricasInventario, getResumenClientes, gastosDelMes, sumarGastos, MESES,
   contarTransacciones, mesesConDatos, resumenMes, ventasPorProducto, rotacionProductosMes, mesKey, mesLabel,
+  ventasPorCanal,
 } from '../store.jsx';
 
 const TABS = ['Diario', 'Semanal', 'Mensual', 'Clientes'];
@@ -255,6 +256,33 @@ function ReporteMensual({ ventas, movimientos, productos, config, gastos }) {
         <KpiTile label="Transacciones"  value={String(nTx)} color={MACACO.cyan} />
         <KpiTile label="COGS del mes"   value={cogsMes > 0 ? clpCompact(cogsMes) : '—'} color={MACACO.danger} />
       </div>
+
+      {/* Ventas por canal */}
+      {vMes.length > 0 && (
+        <>
+          <SectionTitle>Ventas por canal</SectionTitle>
+          <Card padding={0} style={{ marginBottom: 14 }}>
+            {ventasPorCanal(vMes).map((c, i, arr) => (
+              <div key={c.canal} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 14px',
+                borderBottom: i === arr.length - 1 ? 'none' : `1px solid ${MACACO.borderSoft}`,
+              }}>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.canal}</div>
+                  <div style={{ fontSize: 11, color: MACACO.textMuted, marginTop: 2 }}>
+                    {c.transacciones} {c.transacciones === 1 ? 'venta' : 'ventas'} · margen {c.margenPct.toFixed(0)}%
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{clp(c.total)}</div>
+                  <div style={{ fontSize: 11, color: MACACO.success, marginTop: 2 }}>{clp(c.margen)} margen</div>
+                </div>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
 
       {/* Resultado neto real */}
       <SectionTitle>Resultado neto real</SectionTitle>
