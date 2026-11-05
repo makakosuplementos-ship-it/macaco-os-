@@ -49,6 +49,26 @@ export function ventasPorProducto(lista) {
   return Object.values(m).sort((a, b) => b.total - a.total);
 }
 
+// Canales de venta que se pueden elegir al registrar. Las ventas viejas no traen canal.
+export const CANALES = ['Arica directo', 'Kiosco', 'Shopify', 'Mercado Libre'];
+export const SIN_CANAL = 'Sin canal';
+
+// Ventas por canal en una lista de ventas: total, margen y transacciones (un pack = 1).
+export function ventasPorCanal(lista) {
+  const m = {};
+  const vistos = new Set();
+  lista.forEach(v => {
+    const k = v.canal || SIN_CANAL;
+    if (!m[k]) m[k] = { canal: k, total: 0, margen: 0, transacciones: 0 };
+    m[k].total += v.total; m[k].margen += v.margen;
+    const tx = v.packId || v.id;
+    if (!vistos.has(tx)) { vistos.add(tx); m[k].transacciones += 1; }
+  });
+  return Object.values(m)
+    .map(c => ({ ...c, margenPct: c.total > 0 ? (c.margen / c.total) * 100 : 0 }))
+    .sort((a, b) => b.total - a.total);
+}
+
 export function getDiasDelMes(ventas, fecha = new Date()) {
   const año = fecha.getFullYear(), mes = fecha.getMonth();
   const hoyStr = fecha.toDateString();

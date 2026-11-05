@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MACACO, clp } from '../theme.js';
 import { Card, SectionTitle, Dot, Icon } from '../components/ui.jsx';
 import { Screen } from '../components/Screen.jsx';
-import { useApp } from '../store.jsx';
+import { useApp, CANALES } from '../store.jsx';
 
 const stepBtn = {
   width: 30, height: 30, borderRadius: 8,
@@ -34,6 +34,7 @@ export default function VentaScreen({ go }) {
   const [price, setPrice]         = useState(0);
   const [client, setClient]       = useState('');
   const [method, setMethod]       = useState('Transferencia');
+  const [canal, setCanal]         = useState('Arica directo');
   const [openPicker, setOpenPicker] = useState(false);
   const [lineas, setLineas]       = useState([]);   // productos ya agregados al pack
   const [packTotal, setPackTotal] = useState(null); // null = suma de precios de lista
@@ -113,6 +114,7 @@ export default function VentaScreen({ go }) {
         margen:         t - pr.cost * l.qty,
         cliente:        client || null,
         metodoPago:     method,
+        canal,
         ...(packId ? { packId } : {}),
       };
       ventasPack.push(venta);
@@ -308,6 +310,25 @@ export default function VentaScreen({ go }) {
           }}
         />
       </Card>
+
+      <SectionTitle>Canal de venta</SectionTitle>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+        {CANALES.map(c => {
+          const active = canal === c;
+          return (
+            <button key={c} onClick={() => setCanal(c)}
+              style={{
+                padding: '12px 8px', borderRadius: 12,
+                background: active ? MACACO.primary : MACACO.card,
+                color: active ? '#0A0A0F' : '#fff',
+                border: `1px solid ${active ? MACACO.primary : MACACO.border}`,
+                fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: active ? `0 0 18px ${MACACO.primary}44` : 'none',
+              }}
+            >{c}</button>
+          );
+        })}
+      </div>
 
       <SectionTitle>Método de pago</SectionTitle>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
