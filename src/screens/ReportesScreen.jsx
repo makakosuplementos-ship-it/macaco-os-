@@ -9,7 +9,7 @@ import {
   sumarTotal, sumarMargen, getDiasGraficoSemanal, getTopProductos,
   calcMetricasInventario, getResumenClientes, gastosDelMes, sumarGastos, MESES,
   contarTransacciones, mesesConDatos, resumenMes, ventasPorProducto, rotacionProductosMes, mesKey, mesLabel,
-  ventasPorCanal,
+  ventasPorCanal, ventasPorSabor,
 } from '../store.jsx';
 
 const TABS = ['Diario', 'Semanal', 'Mensual', 'Clientes'];
@@ -395,6 +395,7 @@ function ReporteMensual({ ventas, movimientos, productos, config, gastos }) {
       </div>
 
       <ProductosDelMes ventas={ventas} movimientos={movimientos} productos={productos} fecha={hoy} esActual={esActual} />
+      <SaboresVendidos ventasMes={vMes} ventasTodas={ventas} productos={productos} />
       {vMes.length === 0 && <EmptyState texto="Sin ventas registradas este mes" />}
     </>
   );
@@ -449,6 +450,74 @@ function ProductosDelMes({ ventas, movimientos, productos, fecha, esActual }) {
       </Card>
       <div style={{ fontSize: 10.5, color: MACACO.textMuted, lineHeight: 1.45, margin: '0 4px 14px' }}>
         Rotación = unidades vendidas ÷ stock promedio del mes. Los días indican cada cuánto se renueva el stock (menos días = rota más rápido).
+      </div>
+    </>
+  );
+}
+
+// ─── Sabores ──────────────────────────────────────────────────────────────────
+// Qué sabor se vende más y cuál menos, por producto. Solo cuenta ventas registradas
+// con sabor (las anteriores a los sabores no lo traen).
+function SaboresVendidos({ ventasMes, ventasTodas, productos }) {
+  const [alcance, setAlcance] = useState('mes'); // mes | todo
+  const grupos = ventasPorSabor(alcance === 'mes' ? ventasMes : ventasTodas, productos);
+  if (grupos.length === 0) return null;
+  const hayVentas = grupos.some(g => g.unidades > 0);
+
+  return (
+    <>
+      <SectionTitle>Sabores</SectionTitle>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        {[['mes', 'Este mes'], ['todo', 'Todo el historial']].map(([id, label]) => {
+          const active = alcance === id;
+          return (
+            <button key={id} onClick={() => setAlcance(id)} style={{
+              flex: 1, padding: '9px 6px', borderRadius: 10, fontFamily: 'inherit', cursor: 'pointer',
+              background: active ? MACACO.primary : MACACO.card, color: active ? '#0A0A0F' : '#fff',
+              border: `1px solid ${active ? MACACO.primary : MACACO.border}`, fontSize: 12, fontWeight: 700,
+            }}>{label}</button>
+          );
+        })}
+      </div>
+      {grupos.map(g => (
+        <Card key={g.productoId} padding={0} style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '12px 14px 4px' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, minWidth: 0 }}>{g.producto}</div>
+            <div style={{ fontSize: 11.5, color: MACACO.textDim, flexShrink: 0 }}>{g.unidades} u con sabor</div>
+          </div>
+          {g.sabores.map((f, i) => {
+            // solo se marca cuando hay un ganador (o perdedor) claro, no en un empate
+            const mas   = hayVentas && i === 0 && f.unidades > 0 && f.unidades > (g.sabores[1]?.unidades ?? 0);
+            const menos = g.sabores.length > 1 && i === g.sabores.length - 1 && g.unidades > 0
+              && f.unidades < (g.sabores[g.sabores.length - 2]?.unidades ?? 0);
+            const sinStock = f.stock !== null && f.stock <= 0;
+            return (
+              <div key={f.sabor} style={{ padding: '9px 14px', borderTop: `1px solid ${MACACO.borderSoft}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, minWidth: 0 }}>
+                    {f.sabor}
+                    {mas && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: MACACO.success }}>MÁS VENDIDO</span>}
+                    {menos && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: MACACO.textMuted }}>MENOS VENDIDO</span>}
+                  </div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                    {f.unidades} u{f.unidades > 0 ? ` · ${clp(f.total)}` : ''}
+                  </div>
+                </div>
+                <div style={{ height: 5, borderRadius: 999, background: MACACO.cardElev, marginTop: 6, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.round(f.pct)}%`, height: '100%', background: mas ? MACACO.success : MACACO.primary }} />
+                </div>
+                <div style={{ fontSize: 10.5, marginTop: 4, color: sinStock && f.unidades > 0 ? MACACO.danger : MACACO.textMuted }}>
+                  {g.unidades > 0 ? `${Math.round(f.pct)}% de las ventas` : 'sin ventas aún'}
+                  {f.stock !== null && ` · ${sinStock ? 'agotado' : `${f.stock} en stock`}`}
+                  {sinStock && f.unidades > 0 && ' · se vende y no tienes'}
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      ))}
+      <div style={{ fontSize: 10.5, color: MACACO.textMuted, lineHeight: 1.45, margin: '0 4px 14px' }}>
+        Solo cuenta ventas registradas con sabor. Las anteriores a que agregaras sabores no se pueden repartir.
       </div>
     </>
   );

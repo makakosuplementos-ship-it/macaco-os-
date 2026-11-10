@@ -19,16 +19,51 @@ function porId(lista) {
   return m;
 }
 
+const esMapa = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+const sumaMapa = (m) => Object.values(m).reduce((n, u) => n + u, 0);
+
+// Sabores de un producto ({ sabor: unidades }): cada sabor se fusiona por DIFERENCIA,
+// igual que el stock. Si cada celular vendió un sabor distinto, quedan las dos ventas.
+function fusionarSabores(base, local, remoto) {
+  const out = {};
+  new Set([...Object.keys(local), ...Object.keys(remoto)]).forEach(n => {
+    const enB = n in base, enL = n in local, enR = n in remoto;
+    if (enB && (!enL || !enR)) return;                       // alguien lo quitó
+    if (enB) out[n] = Math.max(0, remoto[n] + (local[n] - base[n]));
+    else out[n] = enL ? local[n] : remoto[n];                // sabor nuevo
+  });
+  return out;
+}
+
 function fusionarObjeto(base, local, remoto, numericos = []) {
   const out = { ...remoto };
   Object.keys(local).forEach(k => {
-    if (numericos.includes(k) && typeof local[k] === 'number' && typeof base[k] === 'number' && typeof remoto[k] === 'number') {
+    if (k === 'sabores' && esMapa(local[k]) && esMapa(base[k]) && esMapa(remoto[k])) {
+      out[k] = fusionarSabores(base[k], local[k], remoto[k]);
+    } else if (numericos.includes(k) && typeof local[k] === 'number' && typeof base[k] === 'number' && typeof remoto[k] === 'number') {
       out[k] = Math.max(0, remoto[k] + (local[k] - base[k]));
     } else if (!igual(local[k], base[k])) {
       out[k] = local[k];
     }
   });
   Object.keys(base).forEach(k => { if (!(k in local)) delete out[k]; });
+  // Con sabores, el stock total es siempre la suma. Si por una activación de sabores
+  // en un celular y una venta en el otro quedó una diferencia, se absorbe aquí: lo que
+  // sobra va a "Sin asignar"; lo que falta se descuenta de "Sin asignar" y, si no
+  // alcanza, del sabor con más unidades (no sabemos de cuál fue la venta).
+  if (esMapa(out.sabores) && typeof out.stock === 'number') {
+    const sab = { ...out.sabores };
+    let falta = out.stock - sumaMapa(sab);
+    if (falta > 0) sab['Sin asignar'] = (sab['Sin asignar'] ?? 0) + falta;
+    while (falta < 0) {
+      const [mayor] = (sab['Sin asignar'] > 0 ? ['Sin asignar'] : Object.entries(sab).sort((a, b) => b[1] - a[1])[0] || []);
+      if (!mayor || sab[mayor] <= 0) break;
+      const saca = Math.min(sab[mayor], -falta);
+      sab[mayor] -= saca; falta += saca;
+    }
+    out.sabores = sab;
+    out.stock = sumaMapa(sab);
+  }
   return out;
 }
 

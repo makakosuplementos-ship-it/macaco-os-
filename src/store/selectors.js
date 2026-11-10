@@ -49,6 +49,40 @@ export function ventasPorProducto(lista) {
   return Object.values(m).sort((a, b) => b.total - a.total);
 }
 
+// Ranking de sabores por producto: unidades y plata de cada sabor en `lista` de ventas.
+// Incluye los sabores actuales del producto aunque no hayan vendido (0 u), para ver
+// cuál se vende menos. Solo cuenta ventas que tienen sabor; las viejas quedan fuera.
+export function ventasPorSabor(lista, productos = []) {
+  const porProd = new Map();
+  const fila = (id, nombre) => {
+    if (!porProd.has(id)) porProd.set(id, { productoId: id, producto: nombre, unidades: 0, sabores: new Map() });
+    return porProd.get(id);
+  };
+  const sab = (g, nombre) => {
+    if (!g.sabores.has(nombre)) g.sabores.set(nombre, { sabor: nombre, unidades: 0, total: 0, margen: 0, stock: null });
+    return g.sabores.get(nombre);
+  };
+  productos.forEach(p => {
+    Object.entries(p.sabores || {}).forEach(([nombre, stock]) => { sab(fila(p.id, p.name), nombre).stock = stock; });
+  });
+  lista.forEach(v => {
+    if (!v.sabor) return;
+    const g = fila(v.productoId || v.producto, v.producto);
+    const f = sab(g, v.sabor);
+    f.unidades += v.cantidad; f.total += v.total; f.margen += v.margen;
+    g.unidades += v.cantidad;
+  });
+  return [...porProd.values()]
+    .map(g => {
+      const sabores = [...g.sabores.values()]
+        .map(f => ({ ...f, pct: g.unidades > 0 ? (f.unidades / g.unidades) * 100 : 0 }))
+        .sort((a, b) => b.unidades - a.unidades || b.total - a.total || a.sabor.localeCompare(b.sabor));
+      return { productoId: g.productoId, producto: g.producto, unidades: g.unidades, sabores };
+    })
+    .filter(g => g.sabores.length > 0)
+    .sort((a, b) => b.unidades - a.unidades);
+}
+
 // Canales de venta que se pueden elegir al registrar. Las ventas viejas no traen canal.
 export const CANALES = ['Arica directo', 'Kiosco', 'Shopify', 'Mercado Libre'];
 export const SIN_CANAL = 'Sin canal';

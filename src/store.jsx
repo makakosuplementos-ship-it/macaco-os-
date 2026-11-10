@@ -197,6 +197,10 @@ export function AppProvider({ children }) {
   const anularCompra = useCallback((gastoId) =>
     commit(ledger.anularCompra(ref.current, gastoId)), [commit]);
 
+  // Reparte el stock de un producto en sabores ({ sabor: unidades }); vacío = sin sabores.
+  const definirSabores = useCallback((id, sabores) =>
+    commit(ledger.definirSabores(ref.current, id, sabores, ctx())), [commit]);
+
   const ajustarCaja = useCallback((valor) =>
     commit(ledger.ajustarCaja(ref.current, valor)), [commit]);
 
@@ -270,7 +274,7 @@ export function AppProvider({ children }) {
   const valor = useMemo(() => ({
     ...estado,
     cargandoDB, errorDB, sync, reintentarSync,
-    registrarVenta, cancelarVenta, moverStock, registrarGasto, registrarCompra, anularCompra,
+    registrarVenta, cancelarVenta, moverStock, definirSabores, registrarGasto, registrarCompra, anularCompra,
     ajustarCaja, pagarDeuda, registrarOrden, cancelarOrden, recibirPedido,
     agregarProducto, editarProducto, agregarDeuda, editarDeuda, eliminarDeuda, setConfig,
     actualizarPedido, eliminarPedido, decidirCorteza,

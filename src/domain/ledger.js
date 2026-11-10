@@ -29,6 +29,23 @@ function setStock(producto, stock, alerta) {
   return { ...producto, stock, status: calcStatus(stock, alerta) };
 }
 
+// ── Sabores ──────────────────────────────────────────────────────────────────
+// Un producto puede llevar `sabores: { 'Chocolate': 20, 'Vainilla': 0 }` (unidades
+// por sabor). Si lo tiene, `stock` es SIEMPRE la suma de los sabores; todo lo demás
+// (caja, catálogo, alertas) sigue leyendo `stock` como antes.
+export const SIN_SABOR = 'Sin asignar';
+
+export const tieneSabores = (p) => !!p && !!p.sabores && Object.keys(p.sabores).length > 0;
+export const sumaSabores = (sabores) => Object.values(sabores || {}).reduce((n, u) => n + u, 0);
+
+// Mueve `delta` unidades de un producto (y de un sabor, si el producto los tiene).
+function moverUnidades(producto, delta, sabor, alerta) {
+  if (!tieneSabores(producto)) return setStock(producto, Math.max(0, producto.stock + delta), alerta);
+  const sabores = { ...producto.sabores };
+  sabores[sabor] = Math.max(0, (sabores[sabor] ?? 0) + delta);
+  return setStock({ ...producto, sabores }, sumaSabores(sabores), alerta);
+}
+
 // ── Ventas ───────────────────────────────────────────────────────────────────
 // `lineas` es una venta o un pack (varias líneas). Se guarda TODO o nada: si una
 // línea es inválida lanza error antes de cambiar nada.
@@ -40,21 +57,28 @@ export function registrarVenta(estado, lineas, ctx) {
     if (!l.productoId) throw new Error(`Línea ${i + 1}: falta el producto`);
     if (!entero(l.cantidad) || l.cantidad <= 0) throw new Error(`Línea ${i + 1}: cantidad inválida`);
     if (!Number.isFinite(l.total) || l.total < 0) throw new Error(`Línea ${i + 1}: total inválido`);
+    const prod = estado.productos.find(x => x.id === l.productoId);
+    if (tieneSabores(prod) && !(l.sabor in prod.sabores)) throw new Error(`Línea ${i + 1}: elige el sabor de ${prod.name}`);
   });
 
-  const nuevas = lista.map(l => ({ ...l, id: c.genId(), fecha: c.ahora }));
+  const nuevas = lista.map(l => {
+    const prod = estado.productos.find(x => x.id === l.productoId);
+    const { sabor, ...resto } = l;
+    return { ...resto, ...(tieneSabores(prod) ? { sabor } : {}), id: c.genId(), fecha: c.ahora };
+  });
 
   let productos = estado.productos;
   const movimientos = [];
   nuevas.forEach(v => {
     const p = productos.find(x => x.id === v.productoId);
     if (!p) return; // producto borrado del catálogo: la venta se registra igual
-    const despues = Math.max(0, p.stock - v.cantidad);
-    productos = productos.map(x => x.id === p.id ? setStock(x, despues, c.alerta) : x);
+    const nuevo = moverUnidades(p, -v.cantidad, v.sabor, c.alerta);
+    productos = productos.map(x => x.id === p.id ? nuevo : x);
     movimientos.push({
       id: c.genId(), fecha: c.ahora, tipo: 'venta',
       productoId: p.id, producto: p.name,
-      delta: despues - p.stock, stockAntes: p.stock, stockDespues: despues,
+      ...(tieneSabores(p) ? { sabor: v.sabor } : {}),
+      delta: nuevo.stock - p.stock, stockAntes: p.stock, stockDespues: nuevo.stock,
       ventaId: v.id,
     });
   });
@@ -82,12 +106,15 @@ export function cancelarVenta(estado, ventaId, ctx) {
   anuladas.forEach(a => {
     const p = productos.find(x => x.id === a.productoId);
     if (!p) return;
-    const despues = p.stock + a.cantidad;
-    productos = productos.map(x => x.id === p.id ? setStock(x, despues, c.alerta) : x);
+    // la venta vuelve a su sabor; una venta vieja (sin sabor) vuelve a "Sin asignar"
+    const sabor = tieneSabores(p) ? (a.sabor || SIN_SABOR) : undefined;
+    const nuevo = moverUnidades(p, a.cantidad, sabor, c.alerta);
+    productos = productos.map(x => x.id === p.id ? nuevo : x);
     movimientos.push({
       id: c.genId(), fecha: c.ahora, tipo: 'anulacion',
       productoId: p.id, producto: p.name,
-      delta: a.cantidad, stockAntes: p.stock, stockDespues: despues,
+      ...(sabor ? { sabor } : {}),
+      delta: a.cantidad, stockAntes: p.stock, stockDespues: nuevo.stock,
       ventaId: a.id,
     });
   });
@@ -109,15 +136,60 @@ export function ajustarStock(estado, productoId, delta, tipo, ctx, extra = {}) {
   if (!entero(delta) || delta === 0) throw new Error('Ajuste de stock inválido');
   const p = estado.productos.find(x => x.id === productoId);
   if (!p) throw new Error('Producto no encontrado');
-  const despues = Math.max(0, p.stock + delta);
+  // Con sabores: lo que entra sin sabor (p. ej. un pedido) queda en "Sin asignar";
+  // lo que sale necesita saber de qué sabor.
+  let sabor;
+  if (tieneSabores(p)) {
+    sabor = extra.sabor || (delta > 0 ? SIN_SABOR : null);
+    if (!sabor) throw new Error(`Elige el sabor de ${p.name}`);
+  }
+  const nuevo = moverUnidades(p, delta, sabor, c.alerta);
+  const { sabor: _ignorado, ...extraSinSabor } = extra;
   return {
-    productos: estado.productos.map(x => x.id === p.id ? setStock(x, despues, c.alerta) : x),
+    productos: estado.productos.map(x => x.id === p.id ? nuevo : x),
     movimientos: [{
       id: c.genId(), fecha: c.ahora, tipo,
       productoId: p.id, producto: p.name,
-      delta: despues - p.stock, stockAntes: p.stock, stockDespues: despues,
-      ...extra,
+      ...(sabor ? { sabor } : {}),
+      delta: nuevo.stock - p.stock, stockAntes: p.stock, stockDespues: nuevo.stock,
+      ...extraSinSabor,
     }, ...estado.movimientos],
+    cambiaronProductos: [p.id],
+  };
+}
+
+// Define cuántas unidades hay de cada sabor de un producto. `sabores` es
+// { nombre: unidades }; vacío = el producto deja de llevar sabores (conserva su
+// stock total). El stock total pasa a ser la suma; si cambió, queda un movimiento.
+export function definirSabores(estado, productoId, sabores, ctx) {
+  const c = contexto(ctx);
+  const p = estado.productos.find(x => x.id === productoId);
+  if (!p) throw new Error('Producto no encontrado');
+
+  const limpios = {};
+  const vistos = new Set();
+  Object.entries(sabores || {}).forEach(([nombre, unidades]) => {
+    const n = String(nombre).trim();
+    if (!n) throw new Error('Un sabor no tiene nombre');
+    if (vistos.has(n.toLowerCase())) throw new Error(`El sabor "${n}" está repetido`);
+    vistos.add(n.toLowerCase());
+    if (!entero(unidades) || unidades < 0) throw new Error(`Unidades inválidas en "${n}"`);
+    limpios[n] = unidades;
+  });
+
+  const hay = Object.keys(limpios).length > 0;
+  const stock = hay ? sumaSabores(limpios) : p.stock;
+  const { sabores: _antes, ...sinSabores } = p;
+  const nuevo = setStock(hay ? { ...sinSabores, sabores: limpios } : sinSabores, stock, c.alerta);
+  const movimientos = stock !== p.stock ? [{
+    id: c.genId(), fecha: c.ahora, tipo: 'ajuste',
+    productoId: p.id, producto: p.name,
+    delta: stock - p.stock, stockAntes: p.stock, stockDespues: stock,
+  }] : [];
+
+  return {
+    productos: estado.productos.map(x => x.id === p.id ? nuevo : x),
+    movimientos: [...movimientos, ...estado.movimientos],
     cambiaronProductos: [p.id],
   };
 }

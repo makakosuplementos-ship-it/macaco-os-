@@ -3,6 +3,7 @@ import { MACACO, clp } from '../theme.js';
 import { Card, SectionTitle, Dot, Icon } from '../components/ui.jsx';
 import { Screen } from '../components/Screen.jsx';
 import { useApp, CANALES } from '../store.jsx';
+import { tieneSabores } from '../domain/ledger.js';
 
 const stepBtn = {
   width: 30, height: 30, borderRadius: 8,
@@ -25,12 +26,20 @@ function repartirPack(lineas, totalPack) {
   });
 }
 
+// Primer sabor con unidades (el que se propone al elegir un producto con sabores).
+const primerSabor = (p) => {
+  if (!tieneSabores(p)) return '';
+  const nombres = Object.keys(p.sabores);
+  return nombres.find(n => p.sabores[n] > 0) || nombres[0];
+};
+
 export default function VentaScreen({ go }) {
   const { productos, ventas, registrarVenta, cancelarVenta } = useApp();
   const disponibles = productos.filter(p => p.stock > 0);
 
   const [productId, setProductId] = useState(disponibles[0]?.id || '');
   const [qty, setQty]             = useState(1);
+  const [sabor, setSabor]         = useState('');
   const [price, setPrice]         = useState(0);
   const [client, setClient]       = useState('');
   const [method, setMethod]       = useState('Transferencia');
@@ -44,7 +53,7 @@ export default function VentaScreen({ go }) {
   const product = productos.find(p => p.id === productId);
 
   useEffect(() => {
-    if (product) setPrice(product.price);
+    if (product) { setPrice(product.price); setSabor(primerSabor(product)); }
   }, [productId]);
 
   useEffect(() => {
@@ -66,24 +75,30 @@ export default function VentaScreen({ go }) {
   }
 
   const esPack   = lineas.length > 0;
-  const todas    = [...lineas, { productId, qty, price }];
+  const todas    = [...lineas, { productId, qty, price, sabor }];
   const prodDe   = (id) => productos.find(p => p.id === id);
-  const usadoDe  = (id) => todas.filter(l => l.productId === id).reduce((n, l) => n + l.qty, 0);
-  // Cuánto se puede agregar de ESTE producto, descontando lo que ya está en el pack.
-  const maxQty   = product.stock - lineas.filter(l => l.productId === productId).reduce((n, l) => n + l.qty, 0);
-  const sinStock = todas.some(l => usadoDe(l.productId) > (prodDe(l.productId)?.stock ?? 0));
+  // Una línea es un producto y, si los tiene, un sabor: el stock se cuenta por sabor.
+  const mismaLinea = (a, b) => a.productId === b.productId && (a.sabor || '') === (b.sabor || '');
+  const usadoDe  = (l) => todas.filter(x => mismaLinea(x, l)).reduce((n, x) => n + x.qty, 0);
+  const stockDe  = (l) => { const pr = prodDe(l.productId); return tieneSabores(pr) ? (pr.sabores[l.sabor] ?? 0) : (pr?.stock ?? 0); };
+  // Cuánto se puede agregar de ESTE producto (y sabor), descontando lo que ya está en el pack.
+  const actual   = { productId, sabor };
+  const maxQty   = stockDe(actual) - lineas.filter(l => mismaLinea(l, actual)).reduce((n, l) => n + l.qty, 0);
+  const sinStock = todas.some(l => usadoDe(l) > stockDe(l));
+  const sinSabor = todas.some(l => tieneSabores(prodDe(l.productId)) && !l.sabor);
   const refTotal = todas.reduce((n, l) => n + l.price * l.qty, 0);
   const total    = esPack ? (packTotal ?? refTotal) : price * qty;
   const reparto  = esPack ? repartirPack(todas, total) : [total];
   const margen   = todas.reduce((n, l, i) => n + reparto[i] - (prodDe(l.productId)?.cost ?? 0) * l.qty, 0);
   const margenPct = total > 0 ? (margen / total) * 100 : 0;
-  const invalido = sinStock || total <= 0 || todas.some(l => l.price <= 0);
+  const invalido = sinStock || sinSabor || total <= 0 || todas.some(l => l.price <= 0);
 
   const agregarOtro = () => {
     const sig = disponibles.find(p => p.id !== productId) || product;
-    setLineas(ls => [...ls, { productId, qty, price }]);
+    setLineas(ls => [...ls, { productId, qty, price, sabor }]);
     setProductId(sig.id);
     setPrice(sig.price);
+    setSabor(primerSabor(sig));
     setQty(1);
   };
 
@@ -107,6 +122,7 @@ export default function VentaScreen({ go }) {
       const venta = {
         productoId:     l.productId,
         producto:       pr.name,
+        ...(tieneSabores(pr) ? { sabor: l.sabor } : {}),
         cantidad:       l.qty,
         precioUnitario: Math.round(t / l.qty),
         costoUnitario:  pr.cost,
@@ -193,6 +209,36 @@ export default function VentaScreen({ go }) {
         )}
       </Card>
 
+      {tieneSabores(product) && (
+        <>
+          <SectionTitle>Sabor</SectionTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            {Object.entries(product.sabores).sort((a, b) => a[0].localeCompare(b[0])).map(([nombre, unidades]) => {
+              const enPack = lineas.filter(l => mismaLinea(l, { productId, sabor: nombre })).reduce((n, l) => n + l.qty, 0);
+              const quedan = unidades - enPack;
+              const active = sabor === nombre;
+              const agotado = quedan <= 0;
+              return (
+                <button key={nombre} disabled={agotado} onClick={() => { setSabor(nombre); setQty(1); }}
+                  style={{
+                    padding: '11px 10px', borderRadius: 12, textAlign: 'left',
+                    background: active ? MACACO.primary : MACACO.card,
+                    color: active ? '#0A0A0F' : agotado ? MACACO.textMuted : '#fff',
+                    border: `1px solid ${active ? MACACO.primary : MACACO.border}`,
+                    fontFamily: 'inherit', cursor: agotado ? 'not-allowed' : 'pointer',
+                    opacity: agotado ? 0.55 : 1,
+                    boxShadow: active ? `0 0 18px ${MACACO.primary}44` : 'none',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{nombre}</div>
+                  <div style={{ fontSize: 10.5, marginTop: 2, opacity: 0.75 }}>{agotado ? 'agotado' : `${quedan} en stock`}</div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 10, marginBottom: 14 }}>
         <Card padding={14}>
           <div style={{ fontSize: 10.5, color: MACACO.textDim, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
@@ -251,7 +297,7 @@ export default function VentaScreen({ go }) {
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {pr?.name}{esActual ? ' (editando)' : ''}
+                      {pr?.name}{l.sabor ? ` · ${l.sabor}` : ''}{esActual ? ' (editando)' : ''}
                     </div>
                     <div style={{ fontSize: 11, color: MACACO.textMuted, marginTop: 1 }}>
                       ×{l.qty} · lista {clp(l.price)}
@@ -424,7 +470,7 @@ function UltimasVentas({ ventas, onCancelar }) {
   });
   const recientes = grupos.slice(0, 5).map(g => g.lineas.length > 1 ? {
     ...g,
-    producto: g.lineas.map(l => `${l.producto} ×${l.cantidad}`).join(' + '),
+    producto: g.lineas.map(l => `${l.producto}${l.sabor ? ` ${l.sabor}` : ''} ×${l.cantidad}`).join(' + '),
     cantidad: g.lineas.reduce((n, l) => n + l.cantidad, 0),
     total:    g.lineas.reduce((n, l) => n + l.total, 0),
     esPack: true,
@@ -447,7 +493,7 @@ function UltimasVentas({ ventas, onCancelar }) {
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {v.producto}
+                  {v.producto}{v.sabor && !v.esPack ? ` · ${v.sabor}` : ''}
                 </div>
                 <div style={{ fontSize: 11, color: MACACO.textMuted, marginTop: 1 }}>
                   {v.esPack ? 'Pack' : `×${v.cantidad}`} · {esHoy ? fecha : dia}

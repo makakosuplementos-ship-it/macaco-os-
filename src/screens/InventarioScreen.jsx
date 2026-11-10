@@ -12,6 +12,7 @@ import { useFichasCatalogo } from '../services/catalogoLocal.js';
 import { idCatalogo } from '../domain/catalogoWeb.js';
 import { fichaProducto } from '../domain/fichaProducto.js';
 import { Capa } from '../components/Capa.jsx';
+import { tieneSabores, sumaSabores, SIN_SABOR } from '../domain/ledger.js';
 
 const stepBtn = {
   width: 34, height: 34, borderRadius: 8,
@@ -22,7 +23,7 @@ const stepBtn = {
 };
 
 export default function InventarioScreen({ go }) {
-  const { productos, caja, config, ventas, movimientos, pedidos, agregarProducto, moverStock, editarProducto, registrarCompra } = useApp();
+  const { productos, caja, config, ventas, movimientos, pedidos, agregarProducto, moverStock, definirSabores, editarProducto, registrarCompra } = useApp();
   const fichasWeb = useFichasCatalogo();
   // Foto del catálogo web para los productos que no tienen una propia (solo se muestra).
   const webDe = (p) => fichasWeb[idCatalogo(p)] || null;
@@ -31,6 +32,7 @@ export default function InventarioScreen({ go }) {
   const [showAdd, setShowAdd]   = useState(false);
   const [stockSheet, setStockSheet] = useState(null);
   const [editSheet, setEditSheet]   = useState(null);
+  const [saboresSheet, setSaboresSheet] = useState(null);
   const [pubStatus, setPubStatus]   = useState(null); // null | 'loading' | 'ok' | 'error'
   const [filtro, setFiltro]         = useState('todos'); // todos | disponible | pocos | agotado
   const [ficha, setFicha]           = useState(null);    // id del producto abierto
@@ -69,12 +71,22 @@ export default function InventarioScreen({ go }) {
     }
   };
 
-  const handleMoverStock = (id, delta, tipo, montoCaja = 0) => {
+  const handleSabores = (id, sabores) => {
+    try {
+      definirSabores(id, sabores);
+    } catch (err) {
+      alert('No se pudieron guardar los sabores: ' + err.message);
+      return;
+    }
+    setSaboresSheet(null);
+  };
+
+  const handleMoverStock = (id, delta, tipo, montoCaja = 0, sabor = '') => {
     const producto = productos.find(p => p.id === id);
     if (!producto) return;
     try {
-      moverStock(id, delta, tipo); // deja su movimiento
-      if (montoCaja > 0) registrarCompra({ monto: montoCaja, descripcion: `${producto.name} ×${delta}` });
+      moverStock(id, delta, tipo, sabor ? { sabor } : {}); // deja su movimiento
+      if (montoCaja > 0) registrarCompra({ monto: montoCaja, descripcion: `${producto.name}${sabor ? ` ${sabor}` : ''} ×${delta}` });
     } catch (err) {
       alert('No se pudo mover el stock: ' + err.message);
       return;
@@ -194,6 +206,14 @@ export default function InventarioScreen({ go }) {
           onFoto={(imagen) => editarProducto(abierto.id, { imagen })}
           onMover={() => { setStockSheet(abierto); setFicha(null); }}
           onEditar={() => { setEditSheet(abierto); setFicha(null); }}
+          onSabores={() => { setSaboresSheet(abierto); setFicha(null); }}
+        />
+      )}
+      {saboresSheet && (
+        <SaboresSheet
+          producto={saboresSheet}
+          onClose={() => setSaboresSheet(null)}
+          onSave={(sabores) => handleSabores(saboresSheet.id, sabores)}
         />
       )}
       {editSheet && (
@@ -211,7 +231,7 @@ export default function InventarioScreen({ go }) {
           producto={stockSheet}
           onClose={() => setStockSheet(null)}
           caja={caja}
-          onMove={(delta, tipo, montoCaja) => handleMoverStock(stockSheet.id, delta, tipo, montoCaja)}
+          onMove={(delta, tipo, montoCaja, sabor) => handleMoverStock(stockSheet.id, delta, tipo, montoCaja, sabor)}
         />
       )}
       </>
@@ -280,7 +300,7 @@ const fechaCorta = (f) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
 };
 
-function ProductoSheet({ p, web, datos, alerta, onClose, onFoto, onMover, onEditar }) {
+function ProductoSheet({ p, web, datos, alerta, onClose, onFoto, onMover, onEditar, onSabores }) {
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState(null);
   const e = estadoCatalogo(p.stock, alerta);
@@ -328,6 +348,14 @@ function ProductoSheet({ p, web, datos, alerta, onClose, onFoto, onMover, onEdit
         <Dato label="Stock" valor={`${p.stock} u`} color={e.color} />
         <Dato label="Margen" valor={f.margen != null ? `${f.margen}%` : '—'} />
       </div>
+
+      {tieneSabores(p) && (
+        <Bloque titulo="Sabores">
+          {Object.entries(p.sabores).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([nombre, u]) => (
+            <Linea key={nombre} label={nombre} valor={u > 0 ? `${u} u` : 'agotado'} color={u > 0 ? MACACO.text : MACACO.danger} />
+          ))}
+        </Bloque>
+      )}
 
       <Bloque titulo="Plata">
         <Linea label="Ganas por unidad" valor={clp(f.gananciaUnidad)} color={f.gananciaUnidad >= 0 ? MACACO.success : MACACO.danger} />
@@ -382,6 +410,9 @@ function ProductoSheet({ p, web, datos, alerta, onClose, onFoto, onMover, onEdit
       <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
         <button onClick={onMover} style={botonSec}>Mover stock</button>
         <button onClick={onEditar} style={botonSec}>Editar precio</button>
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+        <button onClick={onSabores} style={botonSec}>{tieneSabores(p) ? 'Editar sabores' : 'Agregar sabores'}</button>
       </div>
     </SheetBase>
   );
@@ -444,9 +475,12 @@ function StockMoveSheet({ producto, caja, onClose, onMove }) {
   const [delta, setDelta] = useState(1);
   const [descontar, setDescontar] = useState(true);
   const [tipo, setTipo]   = useState('compra'); // compra | baja | auspicio
+  const conSabores = tieneSabores(producto);
+  const [sabor, setSabor] = useState(conSabores ? Object.keys(producto.sabores).sort((a, b) => a.localeCompare(b))[0] : '');
 
   const signo   = tipo === 'compra' ? +1 : -1;
-  const nuevoStock = Math.max(0, producto.stock + signo * delta);
+  const stockBase  = conSabores ? (producto.sabores[sabor] ?? 0) : producto.stock;
+  const nuevoStock = Math.max(0, stockBase + signo * delta);
 
   const colorMap = { compra: MACACO.success, baja: MACACO.danger, auspicio: MACACO.cyan };
 
@@ -487,6 +521,28 @@ function StockMoveSheet({ producto, caja, onClose, onMove }) {
         })}
       </div>
 
+      {conSabores && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 11, color: MACACO.textDim, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Sabor</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {Object.entries(producto.sabores).sort((a, b) => a[0].localeCompare(b[0])).map(([nombre, u]) => {
+              const active = sabor === nombre;
+              return (
+                <button key={nombre} onClick={() => setSabor(nombre)} style={{
+                  padding: '10px', borderRadius: 10, textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer',
+                  background: active ? colorMap[tipo] + '18' : MACACO.cardElev,
+                  border: `1px solid ${active ? colorMap[tipo] + '55' : MACACO.border}`,
+                  color: active ? colorMap[tipo] : MACACO.textDim,
+                }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700 }}>{nombre}</div>
+                  <div style={{ fontSize: 10, marginTop: 2, opacity: 0.75 }}>{u} u</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 11, color: MACACO.textDim, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Unidades</div>
         <div style={{
@@ -521,8 +577,8 @@ function StockMoveSheet({ producto, caja, onClose, onMove }) {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <div>
-          <div style={{ fontSize: 11, color: MACACO.textMuted }}>Stock actual</div>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>{producto.stock}</div>
+          <div style={{ fontSize: 11, color: MACACO.textMuted }}>Stock actual{conSabores ? ` · ${sabor}` : ''}</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>{stockBase}</div>
         </div>
         <div style={{ fontSize: 28, color: MACACO.textMuted }}>→</div>
         <div style={{ textAlign: 'right' }}>
@@ -556,7 +612,7 @@ function StockMoveSheet({ producto, caja, onClose, onMove }) {
       )}
 
       <button
-        onClick={() => onMove(signo * delta, tipo, tipo === 'compra' && descontar ? producto.cost * delta : 0)}
+        onClick={() => onMove(signo * delta, tipo, tipo === 'compra' && descontar ? producto.cost * delta : 0, sabor)}
         style={{
           width: '100%', padding: '15px',
           background: colorMap[tipo], color: '#0A0A0F',
@@ -567,6 +623,123 @@ function StockMoveSheet({ producto, caja, onClose, onMove }) {
         }}
       >
         {tipo === 'compra' ? `INGRESAR +${delta}` : tipo === 'baja' ? `REGISTRAR BAJA −${delta}` : `REGISTRAR AUSPICIO −${delta}`}
+      </button>
+    </SheetBase>
+  );
+}
+
+// Reparte el stock de un producto en sabores. El stock total pasa a ser la suma.
+function SaboresSheet({ producto, onClose, onSave }) {
+  const inicial = tieneSabores(producto)
+    ? Object.entries(producto.sabores).sort((a, b) => a[0].localeCompare(b[0])).map(([nombre, unidades]) => ({ nombre, unidades }))
+    : [{ nombre: producto.stock > 0 ? SIN_SABOR : '', unidades: producto.stock }];
+  const [filas, setFilas] = useState(inicial);
+
+  const setFila = (i, cambios) => setFilas(fs => fs.map((f, j) => j === i ? { ...f, ...cambios } : f));
+  // Una fila vacía (sin nombre y en 0) se ignora al guardar.
+  const usadas   = filas.filter(f => f.nombre.trim() || f.unidades > 0);
+  const nombres  = usadas.map(f => f.nombre.trim().toLowerCase());
+  const sinNombre = usadas.some(f => !f.nombre.trim());
+  const repetido  = new Set(nombres).size !== nombres.length;
+  const sabores   = Object.fromEntries(usadas.map(f => [f.nombre.trim(), f.unidades]));
+  const total     = usadas.reduce((n, f) => n + f.unidades, 0);
+  const cambio    = JSON.stringify(Object.entries(sabores).sort()) !== JSON.stringify(Object.entries(producto.sabores || {}).sort());
+  const quitando  = usadas.length === 0 && tieneSabores(producto);
+  const canSave   = cambio && !sinNombre && !repetido && (usadas.length > 0 || quitando);
+
+  return (
+    <SheetBase onClose={onClose}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 10.5, color: MACACO.lavanda, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Sabores</div>
+          <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{producto.name}</div>
+        </div>
+        <button onClick={onClose} style={{
+          width: 32, height: 32, borderRadius: 999,
+          background: MACACO.cardElev, border: `1px solid ${MACACO.border}`,
+          color: '#fff', fontSize: 18, cursor: 'pointer', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+        }}>×</button>
+      </div>
+
+      <div style={{ fontSize: 12, color: MACACO.textDim, lineHeight: 1.5, marginBottom: 14 }}>
+        Anota cuántas unidades tienes de cada sabor. Al vender, eliges el sabor y se descuenta de ese; así ves cuál se vende más y no ofreces uno que no tienes.
+        {!tieneSabores(producto) && producto.stock > 0 && <> Tus {producto.stock} unidades actuales quedan en «{SIN_SABOR}»: repártelas entre los sabores.</>}
+      </div>
+
+      {filas.map((f, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <input
+            type="text" value={f.nombre} placeholder="Sabor (ej. Chocolate)"
+            onChange={e => setFila(i, { nombre: e.target.value })}
+            style={{
+              flex: 1, minWidth: 0, background: MACACO.cardElev, border: `1px solid ${MACACO.border}`,
+              borderRadius: 10, padding: '11px 12px', color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit',
+            }}
+          />
+          <input
+            type="text" inputMode="numeric" value={f.unidades === 0 ? '' : String(f.unidades)} placeholder="0"
+            onFocus={e => e.target.select()}
+            onChange={e => setFila(i, { unidades: parseInt(e.target.value.replace(/\D/g, ''), 10) || 0 })}
+            style={{
+              width: 64, background: MACACO.cardElev, border: `1px solid ${MACACO.border}`,
+              borderRadius: 10, padding: '11px 8px', color: '#fff', fontSize: 15, fontWeight: 700,
+              textAlign: 'center', outline: 'none', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums',
+            }}
+          />
+          <button onClick={() => setFilas(fs => fs.filter((_, j) => j !== i))} aria-label="Quitar sabor" style={{
+            width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: 'transparent',
+            border: `1px solid ${MACACO.border}`, color: MACACO.textMuted, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit',
+          }}>×</button>
+        </div>
+      ))}
+
+      <button onClick={() => setFilas(fs => [...fs, { nombre: '', unidades: 0 }])} style={{
+        width: '100%', padding: '11px', marginBottom: 14, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
+        background: 'rgba(245,197,24,0.08)', color: MACACO.primary, border: '1px dashed rgba(245,197,24,0.4)',
+        fontSize: 12.5, fontWeight: 700,
+      }}>+ AGREGAR SABOR</button>
+
+      <div style={{
+        padding: '12px 14px', borderRadius: 12, marginBottom: 14,
+        background: 'rgba(255,255,255,0.03)', border: `1px solid ${MACACO.border}`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div>
+          <div style={{ fontSize: 11, color: MACACO.textMuted }}>Stock hoy</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>{producto.stock}</div>
+        </div>
+        <div style={{ fontSize: 28, color: MACACO.textMuted }}>→</div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 11, color: MACACO.textMuted }}>Suma de sabores</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: total === producto.stock ? '#fff' : MACACO.primary }}>{quitando ? producto.stock : total}</div>
+        </div>
+      </div>
+
+      {(sinNombre || repetido) && (
+        <div style={{ fontSize: 12, color: MACACO.danger, fontWeight: 600, marginBottom: 10 }}>
+          {sinNombre ? 'Todos los sabores con unidades necesitan nombre.' : 'Hay un sabor repetido.'}
+        </div>
+      )}
+      {!quitando && total !== producto.stock && canSave && (
+        <div style={{ fontSize: 11.5, color: MACACO.textMuted, marginBottom: 10 }}>
+          El stock del producto cambiará de {producto.stock} a {total} y quedará registrado como ajuste.
+        </div>
+      )}
+
+      <button
+        onClick={() => canSave && onSave(sabores)}
+        disabled={!canSave}
+        style={{
+          width: '100%', padding: '15px',
+          background: canSave ? MACACO.lavanda : MACACO.cardElev,
+          color: canSave ? '#0A0A0F' : MACACO.textMuted,
+          border: canSave ? 'none' : `1px solid ${MACACO.border}`,
+          borderRadius: 12, fontSize: 13.5, fontWeight: 800, letterSpacing: '0.04em',
+          cursor: canSave ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
+        }}
+      >
+        {!canSave ? 'SIN CAMBIOS' : quitando ? 'QUITAR SABORES' : 'GUARDAR SABORES'}
       </button>
     </SheetBase>
   );

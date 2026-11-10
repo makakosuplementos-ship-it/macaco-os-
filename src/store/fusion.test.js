@@ -41,3 +41,50 @@ test('objetos (config, corteza): cada campo cambiado gana', () => {
   const borrado = fusionarValor('macaco:corteza', { a: 1, b: 2 }, { a: 1 }, { a: 1, b: 2, c: 3 });
   assert.deepEqual(borrado, { a: 1, c: 3 });
 });
+
+// ── Sabores ──────────────────────────────────────────────────────────────────
+const prod = (sabores) => ({ id: 'p', name: 'Proteína', cost: 23000, price: 36000,
+  sabores, stock: Object.values(sabores).reduce((n, u) => n + u, 0) });
+
+test('sabores: cada celular vende un sabor distinto y se suman las dos ventas', () => {
+  const base   = [prod({ Chocolate: 5, Vainilla: 5 })];
+  const local  = [prod({ Chocolate: 3, Vainilla: 5 })];   // vendió 2 de chocolate
+  const remoto = [prod({ Chocolate: 5, Vainilla: 4 })];   // el otro vendió 1 de vainilla
+  const [p] = fusionarValor('macaco:productos', base, local, remoto);
+  assert.deepEqual(p.sabores, { Chocolate: 3, Vainilla: 4 });
+  assert.equal(p.stock, 7);
+});
+
+test('sabores: los dos venden el mismo sabor y se descuentan ambas', () => {
+  const base   = [prod({ Chocolate: 10 })];
+  const [p] = fusionarValor('macaco:productos', base, [prod({ Chocolate: 8 })], [prod({ Chocolate: 7 })]);
+  assert.deepEqual(p.sabores, { Chocolate: 5 });
+  assert.equal(p.stock, 5);
+});
+
+test('sabores: un sabor nuevo de un celular se conserva y el stock cuadra', () => {
+  const base   = [prod({ Chocolate: 5 })];
+  const local  = [prod({ Chocolate: 5, Cookies: 12 })];
+  const remoto = [prod({ Chocolate: 4 })];
+  const [p] = fusionarValor('macaco:productos', base, local, remoto);
+  assert.deepEqual(p.sabores, { Chocolate: 4, Cookies: 12 });
+  assert.equal(p.stock, 16);
+});
+
+test('sabores: activar sabores en un celular mientras el otro vende no pierde la venta', () => {
+  const base   = [{ id: 'p', name: 'Proteína', cost: 1, price: 2, stock: 10 }];
+  const local  = [prod({ Chocolate: 6, Vainilla: 4 })];                        // repartió 10 en sabores
+  const remoto = [{ id: 'p', name: 'Proteína', cost: 1, price: 2, stock: 9 }]; // el otro vendió 1
+  const [p] = fusionarValor('macaco:productos', base, local, remoto);
+  assert.equal(p.stock, 9);
+  assert.equal(Object.values(p.sabores).reduce((n, u) => n + u, 0), 9);
+});
+
+test('sabores: si falta stock y hay "Sin asignar", se descuenta de ahí primero', () => {
+  const base   = [{ id: 'p', name: 'P', cost: 1, price: 2, stock: 10, sabores: { 'Sin asignar': 10 } }];
+  const local  = [{ id: 'p', name: 'P', cost: 1, price: 2, stock: 10, sabores: { 'Sin asignar': 4, Chocolate: 6 } }];
+  const remoto = [{ id: 'p', name: 'P', cost: 1, price: 2, stock: 9,  sabores: { 'Sin asignar': 9 } }];
+  const [p] = fusionarValor('macaco:productos', base, local, remoto);
+  assert.equal(p.stock, 9);
+  assert.deepEqual(p.sabores, { 'Sin asignar': 3, Chocolate: 6 });
+});

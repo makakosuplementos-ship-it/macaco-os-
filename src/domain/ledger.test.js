@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   calcStatus, registrarVenta, cancelarVenta, ajustarStock, registrarGasto,
   registrarCompra, anularCompra, pagarDeuda, registrarOrden, cancelarOrden, recibirPedido,
+  definirSabores, SIN_SABOR,
 } from './ledger.js';
 
 // Estado congelado: si una función muta algo, el test revienta.
@@ -219,4 +220,102 @@ test('recibir pedido mete el stock una sola vez', () => {
   assert.equal(r.movimientos[0].proveedor, 'Grizzly');
   // segunda vez: no hace nada (no duplica stock)
   assert.equal(recibirPedido({ ...e1, ...r }, e1.pedidos[0].id, '2026-11-03', CTX), null);
+});
+
+
+// ── Sabores ──────────────────────────────────────────────────────────────────
+const conSabores = () => congelar({
+  productos: [
+    { id: 'p', name: 'Proteína', stock: 7, cost: 23000, price: 36000, status: 'ok',
+      sabores: { Chocolate: 5, Vainilla: 2, Cookies: 0 } },
+    { id: 'a', name: 'Creatina', stock: 10, cost: 8000, price: 15000, status: 'ok' },
+  ],
+  ventas: [], movimientos: [], gastos: [], pedidos: [], deudas: [], caja: 0,
+});
+const saboresDe = (e, id) => e.productos.find(p => p.id === id).sabores;
+
+test('venta con sabor: baja ese sabor y el stock total es la suma', () => {
+  const r = registrarVenta(conSabores(), linea('p', 2, 60000, { sabor: 'Chocolate' }), CTX);
+  assert.deepEqual(saboresDe(r, 'p'), { Chocolate: 3, Vainilla: 2, Cookies: 0 });
+  assert.equal(stockDe(r, 'p'), 5);
+  assert.equal(r.ventas[0].sabor, 'Chocolate');
+  assert.equal(r.movimientos[0].sabor, 'Chocolate');
+  assert.equal(r.movimientos[0].delta, -2);
+});
+
+test('venta de un producto con sabores sin elegir sabor falla y no cambia nada', () => {
+  assert.throws(() => registrarVenta(conSabores(), linea('p', 1, 36000), CTX), /elige el sabor/i);
+  assert.throws(() => registrarVenta(conSabores(), linea('p', 1, 36000, { sabor: 'Frutilla' }), CTX), /elige el sabor/i);
+});
+
+test('un pack mezcla productos con y sin sabores', () => {
+  const r = registrarVenta(conSabores(), [
+    linea('p', 1, 30000, { sabor: 'Vainilla' }),
+    linea('a', 1, 14000),
+  ], CTX);
+  assert.equal(saboresDe(r, 'p').Vainilla, 1);
+  assert.equal(stockDe(r, 'a'), 9);
+  assert.equal('sabor' in r.ventas.find(v => v.productoId === 'a'), false);
+});
+
+test('un producto sin sabores ignora el sabor que le lleguen en la línea', () => {
+  const r = registrarVenta(conSabores(), linea('a', 1, 14000, { sabor: 'Chocolate' }), CTX);
+  assert.equal('sabor' in r.ventas[0], false);
+  assert.equal(stockDe(r, 'a'), 9);
+});
+
+test('anular una venta devuelve el stock a su sabor', () => {
+  const v = registrarVenta(conSabores(), linea('p', 2, 60000, { sabor: 'Chocolate' }), CTX);
+  const r = cancelarVenta(congelar(v), v.ventas[0].id, CTX);
+  assert.deepEqual(saboresDe(r, 'p'), { Chocolate: 5, Vainilla: 2, Cookies: 0 });
+  assert.equal(stockDe(r, 'p'), 7);
+  assert.equal(r.movimientos[0].sabor, 'Chocolate');
+});
+
+test('anular una venta vieja (sin sabor) de un producto que ahora tiene sabores va a "Sin asignar"', () => {
+  const e = congelar({ ...conSabores(), ventas: [{ id: 'v1', productoId: 'p', producto: 'Proteína', cantidad: 1, total: 30000 }], caja: 30000 });
+  const r = cancelarVenta(e, 'v1', CTX);
+  assert.equal(saboresDe(r, 'p')[SIN_SABOR], 1);
+  assert.equal(stockDe(r, 'p'), 8);
+});
+
+test('ajustarStock con sabor mueve ese sabor; sin sabor entra a "Sin asignar" y no deja sacar', () => {
+  const e = conSabores();
+  const compra = ajustarStock(e, 'p', 10, 'compra', CTX, { sabor: 'Cookies' });
+  assert.equal(saboresDe(compra, 'p').Cookies, 10);
+  assert.equal(stockDe(compra, 'p'), 17);
+  const pedido = ajustarStock(e, 'p', 4, 'compra', CTX, { pedidoId: 'x' });
+  assert.equal(saboresDe(pedido, 'p')[SIN_SABOR], 4);
+  assert.equal(pedido.movimientos[0].pedidoId, 'x');
+  assert.throws(() => ajustarStock(e, 'p', -1, 'baja', CTX), /elige el sabor/i);
+});
+
+test('definirSabores: el stock pasa a ser la suma y deja un movimiento si cambió', () => {
+  const r = definirSabores(base(), 'a', { Natural: 6, Limón: 4 }, CTX);
+  assert.deepEqual(saboresDe(r, 'a'), { Natural: 6, Limón: 4 });
+  assert.equal(stockDe(r, 'a'), 10);
+  assert.equal(r.movimientos.length, 0); // 6 + 4 = 10, no cambió
+  const r2 = definirSabores(base(), 'a', { Natural: 6, Limón: 7 }, CTX);
+  assert.equal(stockDe(r2, 'a'), 13);
+  assert.equal(r2.movimientos[0].delta, 3);
+  assert.equal(r2.movimientos[0].tipo, 'ajuste');
+});
+
+test('definirSabores vacío quita los sabores y conserva el stock; valida nombres y unidades', () => {
+  const r = definirSabores(conSabores(), 'p', {}, CTX);
+  assert.equal('sabores' in r.productos[0], false);
+  assert.equal(stockDe(r, 'p'), 7);
+  assert.throws(() => definirSabores(base(), 'a', { '  ': 1 }, CTX), /no tiene nombre/);
+  assert.throws(() => definirSabores(base(), 'a', { Natural: 1, natural: 2 }, CTX), /repetido/);
+  assert.throws(() => definirSabores(base(), 'a', { Natural: -1 }, CTX), /inválidas/);
+  assert.throws(() => definirSabores(base(), 'zz', { Natural: 1 }, CTX), /no encontrado/);
+});
+
+test('el estado del producto (agotado/bajo) sigue la suma de sabores', () => {
+  const r = registrarVenta(conSabores(), [
+    linea('p', 5, 100000, { sabor: 'Chocolate' }),
+    linea('p', 2, 60000, { sabor: 'Vainilla' }),
+  ], CTX);
+  assert.equal(stockDe(r, 'p'), 0);
+  assert.equal(r.productos[0].status, 'out');
 });
