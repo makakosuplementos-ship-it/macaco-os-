@@ -74,7 +74,12 @@ export function AppProvider({ children }) {
       upsert: (filas) => upsertRows('app_data', filas),
       leerRemoto: (claves) => selectClaves(claves),
       alCambiar: setSync,
-      alFusionar: (v) => desdeClaves(v),
+      alFusionar: (v) => {
+        desdeClaves(v);
+        if (CLAVES.productos in v) {
+          persistRef.current.guardar({ [CLAVE_CATALOGO]: catalogoPublico(v[CLAVES.productos]) });
+        }
+      },
     });
   }
   const persist = persistRef.current;
