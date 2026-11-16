@@ -18,13 +18,18 @@ test('agotado con stock 0 o menos; foto solo si es pública; precio de venta; si
   const pub = catalogoPublico([
     { name: 'Glicinato de Magnesio', stock: 0, cost: 7500, price: 14000, imagen: 'data:image/jpeg;base64,xx' },
     { name: 'Creatina inner', stock: 36, cost: 8990, price: 18000, imagen: 'https://x.supabase.co/storage/v1/object/public/product-images/a.jpg' },
-    { name: 'Glutamina', stock: 0 },
+    { id: 'glutamina', name: 'Glutamina', stock: 0, cost: 7000 },
+    { id: 'crema de arroz', name: ' Crema de arroz ', price: 12900 },
+    { name: 'Sin identificador', stock: 12 },
   ]);
   assert.deepEqual(pub, {
     magnesio: { agotado: true, imagen: null, precio: 14000 },
     'creatina-inner': { agotado: false, imagen: 'https://x.supabase.co/storage/v1/object/public/product-images/a.jpg', precio: 18000 },
+    'os:glutamina': { agotado: true, imagen: null, precio: null, nombre: 'Glutamina' },
+    'os:crema%20de%20arroz': { agotado: null, imagen: null, precio: 12900, nombre: 'Crema de arroz' },
   });
-  assert.ok(!/cost|7500|8990|36/.test(JSON.stringify(pub)));
+  assert.ok(!/cost|7500|8990|7000|36/.test(JSON.stringify(pub)));
+  assert.equal(catalogoPublico([{ id: 'glutamina', name: 'Glutamina 300 g' }])['os:glutamina'].nombre, 'Glutamina 300 g');
 });
 
 test('precio raro o vacío no se publica', () => {

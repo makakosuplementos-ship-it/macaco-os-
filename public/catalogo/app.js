@@ -106,7 +106,9 @@ function renderProducts() {
     const price = cardPrice(product);
     const priceLabel = price == null ? 'Consultar precio' : `${product.variants ? 'Desde ' : ''}${money(price)}`;
     const flavor = product.variants ? `${product.variants.length} sabores · ${product.variants.map(variant => variant.flavor).join(' / ')}` : product.flavor;
-    return `<article class="product-card"><button class="product-media" data-detail="${escapeHTML(product.id)}" aria-label="Ver ${escapeHTML(product.name)}"><img src="${escapeHTML(product.image)}" alt="${escapeHTML(product.name)} · ${escapeHTML(flavor)}" loading="lazy">${product.stock === 0 ? '<span class="stock-badge">AGOTADO</span>' : ''}</button><p class="product-category">${escapeHTML(product.brand)} / ${escapeHTML(product.category)}</p><h3>${escapeHTML(product.name)}</h3><p class="product-variant">${escapeHTML(flavor)} · ${escapeHTML(product.size)}</p><p class="product-benefit">${escapeHTML(product.benefits?.[0] || '')}</p><div class="product-price"><strong>${priceLabel}</strong><span>${price == null ? '' : 'CLP'}</span></div><div class="product-actions"><button data-detail="${escapeHTML(product.id)}">VER PRODUCTO ↗</button><button data-add="${escapeHTML(product.id)}" ${product.stock === 0 ? 'disabled' : ''} aria-label="${product.variants ? 'Elegir sabor de' : 'Añadir'} ${escapeHTML(product.name)}">+</button></div></article>`;
+    const details = [flavor,product.size].filter(Boolean).join(' · ');
+    const categoryLabel = [product.brand,product.category].filter(Boolean).join(' / ');
+    return `<article class="product-card"><button class="product-media" data-detail="${escapeHTML(product.id)}" aria-label="Ver ${escapeHTML(product.name)}"><img src="${escapeHTML(product.image)}" alt="${product.imageMissing ? 'Foto no disponible' : escapeHTML([product.name,flavor].filter(Boolean).join(' · '))}" loading="lazy">${product.stock === 0 ? '<span class="stock-badge">AGOTADO</span>' : ''}</button><p class="product-category">${escapeHTML(categoryLabel)}</p><h3>${escapeHTML(product.name)}</h3>${details ? `<p class="product-variant">${escapeHTML(details)}</p>` : ''}<p class="product-benefit">${escapeHTML(product.benefits?.[0] || '')}</p><div class="product-price"><strong>${priceLabel}</strong><span>${price == null ? '' : 'CLP'}</span></div><div class="product-actions"><button data-detail="${escapeHTML(product.id)}">VER PRODUCTO ↗</button><button data-add="${escapeHTML(product.id)}" ${product.stock === 0 ? 'disabled' : ''} aria-label="${product.variants ? 'Elegir sabor de' : 'Añadir'} ${escapeHTML(product.name)}">+</button></div></article>`;
   }).join('');
   $('#empty').hidden = visible.length !== 0;
   $('#result-count').textContent = `${visible.length} ${visible.length === 1 ? 'producto' : 'productos'}`;
@@ -143,8 +145,10 @@ function showProduct(id, selectedId) {
   const sku = getSku(selectedId || product.variants?.[0]?.id || product.id);
   if (!sku) return;
   const variants = product.variants || [];
+  const imageLabel = sku.imageMissing ? 'Foto no disponible' : [product.name,sku.flavor].filter(Boolean).join(' · ');
+  const availability = sku.stock === 0 ? 'Agotado' : sku.available ? 'Disponible' : 'Consultar stock';
   $('#product-detail').dataset.sku = sku.id;
-  $('#product-detail').innerHTML = `<img src="${escapeHTML(sku.image)}" alt="Imagen de ${escapeHTML(product.name)} sabor ${escapeHTML(sku.flavor)}"><div class="detail-content"><p class="eyebrow">${escapeHTML(product.brand)}</p><h2 id="detail-title">${escapeHTML(product.name)}</h2><p>${escapeHTML(product.description)}</p><h3 class="benefits-heading">Beneficios y características</h3><ul class="benefits-list">${(product.benefits || []).map(benefit => `<li>${escapeHTML(benefit)}</li>`).join('')}</ul>${product.benefitSource ? `<a class="benefit-source" href="${escapeHTML(product.benefitSource.url)}" target="_blank" rel="noopener">${escapeHTML(product.benefitSource.label)} ↗</a>` : ''}<div class="detail-spec"><span>Categoría</span><strong>${escapeHTML(product.category)}</strong></div>${variants.length ? `<label class="variant-picker" for="detail-flavor">Elige el sabor<select id="detail-flavor">${variants.map(variant => `<option value="${escapeHTML(variant.id)}" ${variant.id === sku.id ? 'selected' : ''}>${escapeHTML(variant.flavor)}</option>`).join('')}</select></label>` : `<div class="detail-spec"><span>Sabor</span><strong>${escapeHTML(sku.flavor)}</strong></div>`}<div class="detail-spec"><span>Presentación</span><strong>${escapeHTML(sku.size)}</strong></div><div class="detail-spec"><span>Disponibilidad</span><strong>${sku.stock === 0 ? 'Agotado' : 'Consultar stock'}</strong></div><p class="detail-price">${priceText(sku)} <small>${hasPrice(sku) ? 'CLP' : ''}</small></p><p>${hasPrice(sku) ? 'Precio de referencia. Confirma disponibilidad y precio vigente con Makako Fit.' : 'Precio pendiente de agregar. Puedes incluir este producto en tu selección para consultar.'}</p>${sku.originalImage ? `<a class="benefit-source" href="${escapeHTML(sku.originalImage)}" target="_blank" rel="noopener">Ver foto original del envase ↗</a>` : ''}<button class="primary" data-add-sku="${escapeHTML(sku.id)}" ${sku.stock === 0 ? 'disabled' : ''}>${sku.stock === 0 ? 'AGOTADO' : 'AÑADIR A MI SELECCIÓN'} <span>+</span></button></div>`;
+  $('#product-detail').innerHTML = `<img src="${escapeHTML(sku.image)}" alt="${escapeHTML(imageLabel)}"><div class="detail-content"><p class="eyebrow">${escapeHTML(product.brand || product.category)}</p><h2 id="detail-title">${escapeHTML(product.name)}</h2><p>${escapeHTML(product.description || '')}</p>${product.benefits?.length ? `<h3 class="benefits-heading">Beneficios y características</h3><ul class="benefits-list">${product.benefits.map(benefit => `<li>${escapeHTML(benefit)}</li>`).join('')}</ul>` : ''}${product.benefitSource ? `<a class="benefit-source" href="${escapeHTML(product.benefitSource.url)}" target="_blank" rel="noopener">${escapeHTML(product.benefitSource.label)} ↗</a>` : ''}<div class="detail-spec"><span>Categoría</span><strong>${escapeHTML(product.category)}</strong></div>${variants.length ? `<label class="variant-picker" for="detail-flavor">Elige el sabor<select id="detail-flavor">${variants.map(variant => `<option value="${escapeHTML(variant.id)}" ${variant.id === sku.id ? 'selected' : ''}>${escapeHTML(variant.flavor)}</option>`).join('')}</select></label>` : sku.flavor ? `<div class="detail-spec"><span>Sabor</span><strong>${escapeHTML(sku.flavor)}</strong></div>` : ''}${sku.size ? `<div class="detail-spec"><span>Presentación</span><strong>${escapeHTML(sku.size)}</strong></div>` : ''}<div class="detail-spec"><span>Disponibilidad</span><strong>${availability}</strong></div><p class="detail-price">${priceText(sku)} <small>${hasPrice(sku) ? 'CLP' : ''}</small></p><p>${hasPrice(sku) ? 'Precio de referencia. Confirma disponibilidad y precio vigente con Makako Fit.' : 'Precio pendiente de agregar. Puedes incluir este producto en tu selección para consultar.'}</p>${sku.originalImage ? `<a class="benefit-source" href="${escapeHTML(sku.originalImage)}" target="_blank" rel="noopener">Ver foto original del envase ↗</a>` : ''}<button class="primary" data-add-sku="${escapeHTML(sku.id)}" ${sku.stock === 0 ? 'disabled' : ''}>${sku.stock === 0 ? 'AGOTADO' : 'AÑADIR A MI SELECCIÓN'} <span>+</span></button></div>`;
   if (postersWithPrintedPrice.has(sku.id)) {
     const img = $('#product-detail').querySelector('img');
     const wrapper = document.createElement('div');
@@ -167,13 +171,13 @@ function totalText() {
     : money(total());
 }
 function orderText() {
-  return `Hola Makako Fit, quiero consultar disponibilidad de esta selección:\n\n${cartLines().map(sku => `${sku.qty} × ${sku.name} (${sku.flavor}, ${sku.size}) — ${priceText(sku,sku.qty)}${sku.components && sku.savings > 0 ? ' · Ahorro incluido: ' + money(sku.savings * sku.qty) : ''}`).join('\n')}\n\nTotal de referencia: ${totalText()}\nStock, precio vigente y envío por confirmar.\nEste resumen no confirma una compra.`;
+  return `Hola Makako Fit, quiero consultar disponibilidad de esta selección:\n\n${cartLines().map(sku => `${sku.qty} × ${sku.name}${sku.flavor || sku.size ? ` (${[sku.flavor,sku.size].filter(Boolean).join(', ')})` : ''} — ${priceText(sku,sku.qty)}${sku.components && sku.savings > 0 ? ' · Ahorro incluido: ' + money(sku.savings * sku.qty) : ''}`).join('\n')}\n\nTotal de referencia: ${totalText()}\nStock, precio vigente y envío por confirmar.\nEste resumen no confirma una compra.`;
 }
 function renderCart() {
   const items = cartLines();
   const count = items.reduce((sum,sku) => sum + sku.qty,0);
   $('#cart-count').textContent = count;
-  $('#cart-items').innerHTML = items.length ? items.map(sku => `<article class="cart-item"><img src="${escapeHTML(sku.image)}" alt="${escapeHTML(sku.name)}"><div><h3>${escapeHTML(sku.name)}</h3><p>${escapeHTML(sku.flavor)} · ${escapeHTML(sku.size)}</p><strong>${priceText(sku,sku.qty)}</strong><div class="item-controls"><div class="quantity"><button data-change="${escapeHTML(sku.id)}" data-delta="-1" aria-label="Reducir cantidad de ${escapeHTML(sku.name)} ${escapeHTML(sku.flavor)}">−</button><span>${sku.qty}</span><button data-change="${escapeHTML(sku.id)}" data-delta="1" aria-label="Aumentar cantidad de ${escapeHTML(sku.name)} ${escapeHTML(sku.flavor)}">+</button></div><button class="remove" data-remove="${escapeHTML(sku.id)}">Eliminar</button></div></div></article>`).join('') : '<div class="cart-empty">Tu selección está vacía.<br>Explora el catálogo y añade lo que necesitas.<br><button class="secondary" style="margin-top:20px" data-close="cart-dialog">Seguir explorando</button></div>';
+  $('#cart-items').innerHTML = items.length ? items.map(sku => `<article class="cart-item"><img src="${escapeHTML(sku.image)}" alt="${escapeHTML(sku.name)}"><div><h3>${escapeHTML(sku.name)}</h3><p>${escapeHTML([sku.flavor,sku.size].filter(Boolean).join(' · '))}</p><strong>${priceText(sku,sku.qty)}</strong><div class="item-controls"><div class="quantity"><button data-change="${escapeHTML(sku.id)}" data-delta="-1" aria-label="Reducir cantidad de ${escapeHTML(sku.name)} ${escapeHTML(sku.flavor || '')}">−</button><span>${sku.qty}</span><button data-change="${escapeHTML(sku.id)}" data-delta="1" aria-label="Aumentar cantidad de ${escapeHTML(sku.name)} ${escapeHTML(sku.flavor || '')}">+</button></div><button class="remove" data-remove="${escapeHTML(sku.id)}">Eliminar</button></div></div></article>`).join('') : '<div class="cart-empty">Tu selección está vacía.<br>Explora el catálogo y añade lo que necesitas.<br><button class="secondary" style="margin-top:20px" data-close="cart-dialog">Seguir explorando</button></div>';
   $('#cart-total').textContent = totalText();
   $('#selection-dock').hidden = !count;
   document.body.classList.toggle('has-selection',count > 0);
@@ -247,7 +251,7 @@ setInterval(() => {
   if (day !== visibleOfferDay) {visibleOfferDay = day;renderProducts();renderCart();}
 },30000);
 // Macaco OS manda: agotado, foto y precio salen de la vista pública catalogo_publico
-// (solo {agotado, imagen, precio} por id; sin costos ni unidades). Si falla, queda catalogo.json.
+// Las fichas nuevas también reciben el nombre. Si falla la lectura, queda catalogo.json.
 const MACACO_OS = {
   url:'https://jmvbdjahitdhbvrfblnh.supabase.co/rest/v1/catalogo_publico?select=productos',
   key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptdmJkamFoaXRkaGJ2cmZibG5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxODU2ODksImV4cCI6MjA5NTc2MTY4OX0.6q_M4V6y53sUEr-20MzkSOTZTLL5nthwLLFLPhCsi8o'
@@ -257,20 +261,52 @@ async function aplicarMacacoOS(list) {
     const response = await fetch(MACACO_OS.url,{headers:{apikey:MACACO_OS.key,authorization:'Bearer ' + MACACO_OS.key},cache:'no-store'});
     if (!response.ok) return;
     const [row] = await response.json();
-    const live = row?.productos || {};
-    list.forEach(product => {
-      const info = live[product.id];
-      if (!info) return;
-      product.stock = info.agotado ? 0 : null;
-      (product.variants || []).forEach(variant => { if (info.agotado) variant.stock = 0; else delete variant.stock; });
-      if (typeof info.imagen === 'string' && info.imagen.startsWith('https://')) product.image = info.imagen;
-      if (hasPrice({price:info.precio})) {
-        product.price = info.precio;
-        // El precio es del producto principal; otras presentaciones (ej. otro sabor con su precio) quedan igual.
-        (product.variants || []).forEach(variant => { if (variant.id === product.id) variant.price = info.precio; });
-      }
-    });
+    const live = row?.productos;
+    if (live && typeof live === 'object' && !Array.isArray(live)) actualizarProductos(list, live);
   } catch {}
+}
+
+function actualizarProductos(list, live) {
+  const fichasExistentes = new Set(list.map(product => product.id));
+  list.forEach(product => {
+    if (!Object.hasOwn(live, product.id)) return;
+    const info = live[product.id];
+    if (!info) return;
+    product.stock = info.agotado === true ? 0 : null;
+    product.available = info.agotado === false && !product.variants?.length;
+    (product.variants || []).forEach(variant => {
+      if (info.agotado === true) variant.stock = 0;
+      else delete variant.stock;
+    });
+    const image = fotoInventario(info);
+    if (image) product.image = image;
+    if (hasPrice({price:info.precio})) {
+      product.price = info.precio;
+      // El precio es del producto principal; otras presentaciones conservan su precio.
+      (product.variants || []).forEach(variant => {
+        if (variant.id === product.id) variant.price = info.precio;
+      });
+    }
+  });
+  for (const [id, info] of Object.entries(live)) {
+    if (!id.startsWith('os:') || fichasExistentes.has(id) ||
+        typeof info?.nombre !== 'string' || !info.nombre.trim()) continue;
+    const image = fotoInventario(info);
+    list.push({
+      id,
+      name: info.nombre.trim(),
+      category: 'Otros',
+      image: image || 'assets/logo.png',
+      imageMissing: !image,
+      price: hasPrice({price:info.precio}) ? info.precio : null,
+      stock: info.agotado === true ? 0 : null,
+      available: info.agotado === false
+    });
+  }
+}
+
+function fotoInventario(info) {
+  return typeof info.imagen === 'string' && info.imagen.startsWith('https://') ? info.imagen : null;
 }
 Promise.all(['catalogo.json','packs.json'].map(url => fetch(url).then(response => {if (!response.ok) throw new Error('catalog');return response.json();}))).then(async ([data,packData]) => {
   packs = packData;

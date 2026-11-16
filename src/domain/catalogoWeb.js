@@ -24,16 +24,24 @@ export const ENLACES = {
 // El id del catálogo para un producto: el que se le puso a mano, o el del enlace.
 export const idCatalogo = (p) => p.catalogoId || ENLACES[slug(p.name || '')] || null;
 
-// Lo que el catálogo necesita saber, por id del catálogo: agotado sí/no, la
-// foto y el precio de venta (es público). Nada de costos ni de unidades.
-// Se guarda en app_data `macaco:catalogo`.
+// Publica un resumen explícito. Las fichas sin enlace usan el ID del inventario,
+// que se mantiene al cambiar el nombre, el precio o la foto.
 export function catalogoPublico(productos) {
-  const salida = {};
-  (productos || []).forEach(p => {
-    const id = idCatalogo(p);
-    if (id) salida[id] = { agotado: (Number(p.stock) || 0) <= 0, imagen: fotoPublica(p.imagen), precio: precioPublico(p.price) };
-  });
-  return salida;
+  return Object.fromEntries((productos || []).flatMap(p => {
+    const enlace = idCatalogo(p);
+    const nombre = typeof p.name === 'string' ? p.name.trim() : '';
+    if (!enlace && (!nombre || p.id == null || p.id === '')) return [];
+    const id = enlace || `os:${encodeURIComponent(p.id)}`;
+    const stock = Number(p.stock);
+    const stockConocido = (typeof p.stock === 'number' ||
+      (typeof p.stock === 'string' && p.stock.trim() !== '')) && Number.isFinite(stock);
+    const resumen = {
+      agotado: stockConocido ? stock <= 0 : null,
+      imagen: fotoPublica(p.imagen),
+      precio: precioPublico(p.price)
+    };
+    return [[id, enlace ? resumen : { ...resumen, nombre }]];
+  }));
 }
 
 // Solo URLs públicas: la foto en data: (demo) no sirve fuera del celular.
