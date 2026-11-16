@@ -9,10 +9,10 @@ import { escanearCorteza } from '../corteza.js';
 const COLOR = { alta: MACACO.danger, media: MACACO.orange, baja: MACACO.cyan };
 
 export function CerebroArea({ areas, go }) {
-  const { productos, ventas, gastos, deudas, caja, config, corteza } = useApp();
-  const pendientes = useMemo(() => escanearCorteza({ productos, ventas, gastos, deudas, caja, config })
+  const { productos, ventas, gastos, deudas, caja, config, corteza, movimientos, estrategia } = useApp();
+  const pendientes = useMemo(() => escanearCorteza({ productos, ventas, gastos, deudas, caja, config, movimientos, estrategia })
     .decisiones.filter(d => areas.includes(d.area) && !corteza[d.id]),
-  [productos, ventas, gastos, deudas, caja, config, corteza, areas]);
+  [productos, ventas, gastos, deudas, caja, config, movimientos, estrategia, corteza, areas]);
 
   if (!pendientes.length) return null;
   const top = pendientes[0];

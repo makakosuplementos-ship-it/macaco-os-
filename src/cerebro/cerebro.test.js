@@ -20,6 +20,6 @@ test('sumar un área nueva no toca al cerebro', () => {
   assert.deepEqual(r.decisiones.map(d => [d.id, d.area]), [['x', 'redes']]);
 });
 
-test('las áreas conocidas son finanzas, stock, catálogo y ventas', () => {
-  assert.deepEqual(AREAS.map(a => a.id), ['finanzas', 'stock', 'catalogo', 'ventas']);
+test('las áreas conocidas son finanzas, stock, catálogo, ventas y estrategia', () => {
+  assert.deepEqual(AREAS.map(a => a.id), ['finanzas', 'stock', 'catalogo', 'ventas', 'estrategia']);
 });

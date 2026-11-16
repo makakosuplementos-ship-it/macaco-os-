@@ -9,15 +9,16 @@ import { area as finanzas } from './areas/finanzas.js';
 import { area as stock } from './areas/stock.js';
 import { area as catalogo } from './areas/catalogo.js';
 import { area as ventas } from './areas/ventas.js';
+import { area as estrategia } from './areas/estrategia.js';
 
 export { calcPrioridad } from './decision.js';
-export const AREAS = [finanzas, stock, catalogo, ventas];
+export const AREAS = [finanzas, stock, catalogo, ventas, estrategia];
 
 export function escanear(areas, {
-  productos = [], ventas = [], gastos = [], deudas = [], caja = 0, config = {}, ahora = Date.now(),
+  productos = [], ventas = [], gastos = [], deudas = [], caja = 0, config = {}, movimientos = [], estrategia = {}, ahora = Date.now(),
 } = {}) {
   const t = typeof ahora === 'number' ? ahora : new Date(ahora).getTime();
-  const datos = { productos, ventas, gastos, deudas, caja, config };
+  const datos = { productos, ventas, gastos, deudas, caja, config, movimientos, estrategia };
   const ctx = {
     ahora: t,
     vel: velocidades(ventas, t),

@@ -11,6 +11,7 @@ import ReportesScreen from './screens/ReportesScreen.jsx';
 import ConfigScreen from './screens/ConfigScreen.jsx';
 import GastoScreen from './screens/GastoScreen.jsx';
 import CortezaScreen from './screens/CortezaScreen.jsx';
+import EstrategiaScreen from './screens/EstrategiaScreen.jsx';
 import EquipoScreen from './screens/EquipoScreen.jsx';
 import PortadaScreen from './screens/PortadaScreen.jsx';
 import AreaScreen from './screens/AreaScreen.jsx';
@@ -186,6 +187,7 @@ function AppInner() {
     gasto:      <GastoScreen go={go} />,
     finanzas:   <FinanzasScreen go={go} />,
     corteza:    <CortezaScreen go={go} areaInicial={areaCorteza} />,
+    estrategia: <EstrategiaScreen go={go} />,
     equipo:     <EquipoScreen go={go} />,
     cerebro:    <PortadaScreen go={go} />,
     area:       <AreaScreen go={go} areaId={areaCorteza} />,
@@ -285,7 +287,7 @@ function AppInner() {
             </div>
           )}
 
-          <BottomNav active={['home', 'corteza', 'equipo', 'area', 'gasto'].includes(screen) ? 'cerebro' : screen} go={go} />
+          <BottomNav active={['home', 'corteza', 'equipo', 'area', 'gasto', 'estrategia'].includes(screen) ? 'cerebro' : screen} go={go} />
         </div>
       </IOSDevice>
     </div>

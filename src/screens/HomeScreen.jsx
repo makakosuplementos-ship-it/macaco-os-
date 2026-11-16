@@ -14,12 +14,12 @@ import { resumenInicio } from '../domain/inicio.js';
 import { ResumenInicio } from '../components/ResumenInicio.jsx';
 
 export default function HomeScreen({ go }) {
-  const { ventas, productos, deudas, caja, config, gastos, corteza, sync, pedidos } = useApp();
+  const { ventas, productos, deudas, caja, config, gastos, corteza, sync, pedidos, movimientos, estrategia } = useApp();
   const resumen = useMemo(() => resumenInicio({ ventas, config, pedidos }), [ventas, config, pedidos]);
 
   const cortezaPendientes = useMemo(() => escanearCorteza({
-    productos, ventas, gastos, deudas, caja, config,
-  }).decisiones.filter(d => !corteza[d.id]), [productos, ventas, gastos, deudas, caja, config, corteza]);
+    productos, ventas, gastos, deudas, caja, config, movimientos, estrategia,
+  }).decisiones.filter(d => !corteza[d.id]), [productos, ventas, gastos, deudas, caja, config, movimientos, estrategia, corteza]);
   const cortezaAltas = cortezaPendientes.filter(d => d.prioridad === 'alta').length;
 
   // Kairos: salud, telemetría, vigía y jugada — todo calculado de los datos reales.
