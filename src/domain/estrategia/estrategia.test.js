@@ -28,7 +28,7 @@ test('canales: sin canal no se inventa y lo desconocido queda sin mapear', () =>
   assert.equal(canalTransaccion({ canal: '  ' }), SIN_CANAL);
   assert.equal(canalTransaccion({ canal: 'Instagram DM' }), NO_MAPEADO);
   assert.equal(canalTransaccion({ canal: 'Mercado Libre' }), 'mercado_libre');
-  assert.equal(canalTransaccion({ canal: 'Arica directo' }), 'venta_directa');
+  assert.equal(canalTransaccion({ canal: 'Arica directo' }), 'delivery');
 });
 
 test('canales: un pack cuenta como una transacción y no se atribuye dos veces', () => {
@@ -37,7 +37,7 @@ test('canales: un pack cuenta como una transacción y no se atribuye dos veces',
     linea('b', '2026-11-06T15:00:00Z', { canal: 'Arica directo', packId: 'p1' }),
     linea('c', '2026-11-07T15:00:00Z'),
   ]);
-  const directa = r.find(c => c.canal === 'venta_directa');
+  const directa = r.find(c => c.canal === 'delivery');
   assert.equal(directa.lineas, 2);
   assert.equal(directa.transacciones, 1);
   assert.equal(directa.total, 20_000);

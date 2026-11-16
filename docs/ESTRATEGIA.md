@@ -17,3 +17,8 @@ Integración del Plan Estratégico. **Este repositorio es público: aquí no hay
 
 ## Pruebas
 `npm test` (node:test). Respaldo: la clave es nueva; no se modificó ninguna tabla ni clave existente. Revertir = borrar la fila `macaco:estrategia`.
+
+## Decisiones confirmadas (16-nov-2026)
+- Canales: "Kiosco" = tienda física; "Arica directo" = ventas con delivery.
+- Ventas de jun–ago sin registrar: se dejan como están (fueron ajustes de balance); esos meses quedan fuera de los KPI por no cuadrar con el stock.
+- Deuda vigente: la registrada en la app.

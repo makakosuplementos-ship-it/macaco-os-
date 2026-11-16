@@ -10,14 +10,14 @@ export const SIN_CANAL = 'sin_canal';
 export const NO_MAPEADO = 'no_mapeado';
 
 export const MAPEO_CANALES = {
-  'Arica directo': { codigo: 'venta_directa', estado: 'propuesta' },
-  'Kiosco':        { codigo: 'gimnasio',      estado: 'propuesta' },
+  'Arica directo': { codigo: 'delivery',      estado: 'confirmado' },
+  'Kiosco':        { codigo: 'tienda_fisica', estado: 'confirmado' },
   'Shopify':       { codigo: 'shopify',       estado: 'confirmado' },
   'Mercado Libre': { codigo: 'mercado_libre', estado: 'confirmado' },
 };
 
 export const NOMBRE_CANAL = {
-  gimnasio: 'Tienda gimnasio', venta_directa: 'Venta directa', mercado_libre: 'Mercado Libre',
+  tienda_fisica: 'Tienda física', delivery: 'Delivery (Arica)', mercado_libre: 'Mercado Libre',
   shopify: 'Shopify', sin_canal: 'Sin canal registrado', no_mapeado: 'Canal sin mapear',
 };
 
