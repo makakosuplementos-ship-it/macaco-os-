@@ -30,8 +30,8 @@ export default function CortezaScreen({ go, areaInicial = null }) {
   const { corteza, decidirCorteza } = app;
 
   const correr = () => {
-    const { productos, ventas, gastos, deudas, caja, config } = app;
-    return escanearCorteza({ productos, ventas, gastos, deudas, caja, config });
+    const { productos, ventas, gastos, deudas, caja, config, movimientos, estrategia } = app;
+    return escanearCorteza({ productos, ventas, gastos, deudas, caja, config, movimientos, estrategia });
   };
 
   const [escaneo, setEscaneo]       = useState(correr);

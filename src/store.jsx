@@ -265,6 +265,17 @@ export function AppProvider({ children }) {
     commit({ corteza: v });
   }, [commit]);
 
+  // Estrategia: registros planos `meta:<KPI>`, `pre:<partida>`, `man:<KPI>`,
+  // `cal:<KPI>`, `ini:<IE>`. Una entrada por clave para que la fusión entre
+  // dispositivos nunca pise lo que escribió el otro socio. `null` borra.
+  const guardarEstrategia = useCallback((entradas) => {
+    const v = { ...ref.current.estrategia };
+    Object.entries(entradas).forEach(([k, val]) => {
+      if (val === null) delete v[k]; else v[k] = val;
+    });
+    commit({ estrategia: v });
+  }, [commit]);
+
   const reintentarSync = useCallback(() => persist.reintentar(), [persist]);
 
   const valor = useMemo(() => ({
@@ -273,7 +284,7 @@ export function AppProvider({ children }) {
     registrarVenta, cancelarVenta, moverStock, registrarGasto, registrarCompra, anularCompra,
     ajustarCaja, pagarDeuda, registrarOrden, cancelarOrden, recibirPedido,
     agregarProducto, editarProducto, agregarDeuda, editarDeuda, eliminarDeuda, setConfig,
-    actualizarPedido, eliminarPedido, decidirCorteza,
+    actualizarPedido, eliminarPedido, decidirCorteza, guardarEstrategia,
   }), [estado, cargandoDB, errorDB, sync]); // eslint-disable-line
 
   return <AppContext.Provider value={valor}>{children}</AppContext.Provider>;

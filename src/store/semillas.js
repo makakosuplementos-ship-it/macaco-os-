@@ -12,6 +12,7 @@ export const CLAVES = {
   gastos:      'macaco:gastos',
   pedidos:     'macaco:pedidos',
   corteza:     'macaco:corteza',
+  estrategia:  'macaco:estrategia',
 };
 
 export const PRODUCTOS_INICIAL = [
@@ -49,4 +50,5 @@ export const SEMILLAS = {
   gastos:      [],
   pedidos:     [],
   corteza:     {},
+  estrategia:  {},
 };

@@ -14,14 +14,14 @@ const fino = { fontWeight: 300 };
 const etiqueta = { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' };
 
 export default function PortadaScreen({ go }) {
-  const { productos, ventas, gastos, deudas, caja, config, corteza, sync, pedidos } = useApp();
+  const { productos, ventas, gastos, deudas, caja, config, corteza, sync, pedidos, movimientos, estrategia } = useApp();
   const resumen = useMemo(() => resumenInicio({ ventas, config, pedidos }), [ventas, config, pedidos]);
 
   const areas = useMemo(() => areasPortada({ productos, ventas, gastos, deudas, caja, config }),
     [productos, ventas, gastos, deudas, caja, config]);
   const ahora = useMemo(() => ahoraPaso(
-    escanearCorteza({ productos, ventas, gastos, deudas, caja, config }).decisiones, corteza),
-  [productos, ventas, gastos, deudas, caja, config, corteza]);
+    escanearCorteza({ productos, ventas, gastos, deudas, caja, config, movimientos, estrategia }).decisiones, corteza),
+  [productos, ventas, gastos, deudas, caja, config, movimientos, estrategia, corteza]);
 
   const abrir = (n) => go(n.destino, n.id);
   const fecha = new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -68,7 +68,7 @@ export default function PortadaScreen({ go }) {
 
       {/* Enlaces discretos */}
       <div style={{ display: 'flex', gap: 22, marginTop: 22, flexWrap: 'wrap' }}>
-        {[['Tu equipo · 12 asesores', 'equipo'], ['Más datos del día', 'home'], ['Decisiones del cerebro', 'corteza']].map(([t, d]) => (
+        {[['Tu equipo · 12 asesores', 'equipo'], ['Más datos del día', 'home'], ['Decisiones del cerebro', 'corteza'], ['Estrategia 2027–2031', 'estrategia']].map(([t, d]) => (
           <button key={d} onClick={() => go(d)} style={{
             background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0,
             fontSize: 13, fontWeight: 400, color: MACACO.textDim, textDecoration: 'underline', textUnderlineOffset: 4,
